@@ -10,6 +10,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 public class DropWizardMetricRegistry implements VertexiumMetricRegistry {
+    private static final String START_CONSOLE_REPORTER_PROPERTY_NAME = "metricRegistryStartConsoleReporter";
     private final MetricRegistry metricRegistry;
     private final Map<String, Counter> countersByName = new ConcurrentHashMap<>();
     private final Map<String, Timer> timersByName = new ConcurrentHashMap<>();
@@ -25,10 +26,41 @@ public class DropWizardMetricRegistry implements VertexiumMetricRegistry {
 
     public DropWizardMetricRegistry(MetricRegistry metricRegistry) {
         this.metricRegistry = metricRegistry;
+        startConsoleReporterUsingSystemProperty();
+    }
+
+    private void startConsoleReporterUsingSystemProperty() {
+        String startConsoleReporter = System.getProperty(START_CONSOLE_REPORTER_PROPERTY_NAME, "false").trim();
+        if (startConsoleReporter.equalsIgnoreCase("false")) {
+            return;
+        }
+
+        if (startConsoleReporter.equalsIgnoreCase("true") || startConsoleReporter.length() == 0) {
+            startConsoleReporter(10, TimeUnit.SECONDS);
+        }
+
+        startConsoleReporter(startConsoleReporter);
     }
 
     public MetricRegistry getMetricRegistry() {
         return metricRegistry;
+    }
+
+    private void startConsoleReporter(String period) {
+        try {
+            period = period.trim();
+            if (period.endsWith("ms")) {
+                startConsoleReporter(Integer.parseInt(period.substring(0, period.length() - 2)), TimeUnit.MILLISECONDS);
+            } else if (period.endsWith("s")) {
+                startConsoleReporter(Integer.parseInt(period.substring(0, period.length() - 1)), TimeUnit.SECONDS);
+            } else if (period.endsWith("m")) {
+                startConsoleReporter(Integer.parseInt(period.substring(0, period.length() - 1)), TimeUnit.MINUTES);
+            } else {
+                throw new VertexiumException("Could not parse period, unknown prefix, try ms, s, or m: " + period);
+            }
+        } catch (NumberFormatException ex) {
+            throw new VertexiumException("Could not parse period: " + period, ex);
+        }
     }
 
     public void startConsoleReporter(long periodMillis) {
